@@ -47,10 +47,12 @@ export function validateAuthorizeParams(store: Store, source: Record<string, unk
   };
 }
 
-export function errorRedirectUrl(v: Extract<AuthorizeValidation, { kind: 'redirect' }>): string {
+/** `issuer` is the RFC 9207 `iss` value (see {@link authServerIssuer}), required on every redirect. */
+export function errorRedirectUrl(v: Extract<AuthorizeValidation, { kind: 'redirect' }>, issuer: string): string {
   const url = new URL(v.redirectUri);
   url.searchParams.set('error', v.error);
   url.searchParams.set('error_description', v.description);
   if (v.state) url.searchParams.set('state', v.state);
+  url.searchParams.set('iss', issuer);
   return url.href;
 }

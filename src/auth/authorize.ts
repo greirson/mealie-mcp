@@ -3,6 +3,7 @@ import { MealieClient } from '../mealie/client.js';
 import { MealieError } from '../mealie/errors.js';
 import { encrypt, hashToken, randomToken, safeEqual } from '../store/crypto.js';
 import type { AuthDeps } from './index.js';
+import { authServerIssuer } from './metadata.js';
 import {
   renderErrorPage,
   renderLoginPage,
@@ -23,13 +24,13 @@ const SESSION_NOT_FOUND_MESSAGE = 'Your Mealie sign-in was not found or has expi
 interface MealieUser { id: string; username: string; fullName?: string | null; household?: string | null }
 
 /** Handles the two failure shapes; returns params only when valid. */
-function handleInvalid(res: Response, v: AuthorizeValidation): v is Extract<AuthorizeValidation, { ok: true }> {
+function handleInvalid(res: Response, v: AuthorizeValidation, deps: AuthDeps): v is Extract<AuthorizeValidation, { ok: true }> {
   if (v.ok) return true;
   if (v.kind === 'page') {
     setPageSecurityHeaders(res);
     res.status(400).type('html').send(renderErrorPage(v.message));
   } else {
-    res.redirect(302, errorRedirectUrl(v));
+    res.redirect(302, errorRedirectUrl(v, authServerIssuer(deps.config)));
   }
   return false;
 }
@@ -88,7 +89,7 @@ async function checkMealieSession(deps: AuthDeps, jwt: string): Promise<MealieUs
 export function authorizeGetHandler(deps: AuthDeps): RequestHandler {
   return async (req, res) => {
     const v = validateAuthorizeParams(deps.store, req.query as Record<string, unknown>);
-    if (!handleInvalid(res, v)) return;
+    if (!handleInvalid(res, v, deps)) return;
     const { params } = v;
     const csrf = randomToken(16);
     res.cookie(CSRF_COOKIE, csrf, {
@@ -138,6 +139,8 @@ function finalizeLogin(deps: AuthDeps, res: Response, params: AuthorizeParams, u
   const redirect = new URL(params.redirectUri);
   redirect.searchParams.set('code', code);
   if (params.state) redirect.searchParams.set('state', params.state);
+  // RFC 9207: every authorization response carries iss, exactly matching the AS metadata issuer.
+  redirect.searchParams.set('iss', authServerIssuer(deps.config));
 
   res.clearCookie(CSRF_COOKIE, { path: OAUTH_PATHS.authorize });
   deps.logger.info({ mealieUser: user.username, clientId: params.clientId }, 'connector authorized');
@@ -234,7 +237,7 @@ export function authorizePostHandler(deps: AuthDeps): RequestHandler {
 
     const body = (req.body ?? {}) as Record<string, unknown>;
     const v = validateAuthorizeParams(deps.store, body);
-    if (!handleInvalid(res, v)) return;
+    if (!handleInvalid(res, v, deps)) return;
     const { params } = v;
     const redirectOrigin = new URL(params.redirectUri).origin;
 
