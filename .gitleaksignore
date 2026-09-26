@@ -1,0 +1,4 @@
+# docker-compose.test.yml pins a fixed MCP_ENCRYPTION_KEY so the throwaway local test stack is
+# reproducible. It is a published test fixture, never used outside docker-compose.test.yml, and
+# carries no access to anything real.
+docker-compose.test.yml:generic-api-key:21

@@ -1,0 +1,68 @@
+# Mealie's PostgreSQL compose example (https://docs.mealie.io/documentation/getting-started/installation/postgres/)
+# with mealie-mcp added. Lines marked "mealie-mcp" are the only additions.
+services:
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v3.28.0
+    container_name: mealie
+    restart: always
+    ports:
+      - "9925:9000"
+    deploy:
+      resources:
+        limits:
+          memory: 1000M
+    volumes:
+      - mealie-data:/app/data/
+    environment:
+      ALLOW_SIGNUP: "false"
+      PUID: 1000
+      PGID: 1000
+      TZ: America/Anchorage
+      BASE_URL: https://mealie.yourdomain.com
+      DB_ENGINE: postgres
+      POSTGRES_USER: mealie
+      POSTGRES_PASSWORD: mealie
+      POSTGRES_SERVER: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mealie
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    container_name: postgres
+    image: postgres:17
+    restart: always
+    volumes:
+      - mealie-pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: mealie
+      POSTGRES_USER: mealie
+      PGUSER: mealie
+      POSTGRES_DB: mealie
+    healthcheck:
+      test: ["CMD", "pg_isready"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  mealie-mcp:                                      # mealie-mcp
+    image: ghcr.io/greirson/mealie-mcp:latest      # mealie-mcp
+    container_name: mealie-mcp                     # mealie-mcp
+    restart: always                                # mealie-mcp
+    ports:                                         # mealie-mcp: only needed if your proxy reaches it via the host
+      - "9926:8080"                                # mealie-mcp
+    volumes:                                       # mealie-mcp
+      - mealie-mcp-data:/data                      # mealie-mcp
+    environment:                                   # mealie-mcp
+      PUBLIC_URL: https://mealie.yourdomain.com    # mealie-mcp: same as BASE_URL above
+      MEALIE_URL: http://mealie:9000               # mealie-mcp
+      MEALIE_PUBLIC_URL: https://mealie.yourdomain.com  # mealie-mcp
+      MCP_ENCRYPTION_KEY: ${MCP_ENCRYPTION_KEY}    # mealie-mcp: set in .env, see README
+    depends_on:                                    # mealie-mcp
+      - mealie                                     # mealie-mcp
+
+volumes:
+  mealie-data:
+  mealie-pgdata:
+  mealie-mcp-data:                                 # mealie-mcp

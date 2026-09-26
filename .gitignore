@@ -1,0 +1,10 @@
+.env
+.env.*
+.envrc
+node_modules/
+dist/
+coverage/
+data/
+*.db
+*.log
+.DS_Store

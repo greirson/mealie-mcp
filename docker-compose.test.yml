@@ -1,0 +1,22 @@
+services:
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:latest
+    ports:
+      - "9925:9000"
+    environment:
+      ALLOW_SIGNUP: "false"
+      BASE_URL: http://localhost:9925
+      TZ: UTC
+
+  mealie-mcp:
+    build: .
+    depends_on:
+      - mealie
+    ports:
+      - "8080:8080"
+    environment:
+      PUBLIC_URL: http://localhost:8080
+      MEALIE_URL: http://mealie:9000
+      MEALIE_PUBLIC_URL: http://localhost:9925
+      MCP_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=   # test-only key, never use in production
+      LOG_LEVEL: debug
