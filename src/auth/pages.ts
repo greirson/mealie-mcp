@@ -129,7 +129,7 @@ export function renderSessionPage(input: {
     <h1>Connect ${escapeHtml(clientName)} to Mealie</h1>
     <p><strong>${escapeHtml(clientName)}</strong> (returning to <strong>${escapeHtml(redirectHost)}</strong>) wants to act on Mealie as you.</p>
     <p>Signed in to Mealie as <strong>${escapeHtml(who)}</strong>.</p>
-    <p class="muted">Only click Allow if you just started connecting from Claude or another app you trust.</p>
+    <p class="muted">Only click Allow if you just started connecting from an app you trust.</p>
     <form method="post" action="${OAUTH_PATHS.authorize}">
       ${hiddenFields(params)}
       ${hidden('csrf', input.csrf)}

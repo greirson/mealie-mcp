@@ -44,7 +44,7 @@ export function toToolMessage(err: unknown, notFoundHint?: string): string {
   if (err.kind === 'network') return `Mealie is unreachable from the MCP server (${where}). Check that the Mealie container is running.`;
   switch (err.status) {
     case 401:
-      return 'Mealie rejected this connection\'s API token (it was deleted or expired). Reconnect the Mealie connector in Claude to sign in again.';
+      return 'Mealie rejected this connection\'s API token (it was deleted or expired). Reconnect the Mealie connector in the app you are using to sign in again.';
     case 403:
       return `Your Mealie account does not have permission for ${where}.`;
     case 404:

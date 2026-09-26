@@ -147,14 +147,14 @@ function finalizeLogin(deps: AuthDeps, res: Response, params: AuthorizeParams, u
   );
 }
 
-/** `Claude MCP: <client name> <YYYY-MM-DD>`, with the client name sanitized against a hostile registration. */
+/** `MCP: <client name> <YYYY-MM-DD>`, with the client name sanitized against a hostile registration. */
 function mintedTokenName(clientName: string | null): string {
   const raw = (clientName ?? '').trim() || 'MCP client';
   // Strips control characters and Unicode format characters (bidi overrides, zero-width joins, ...)
   // that a hostile client_name could use to disguise itself in the token list.
   const sanitized = raw.replace(/[\p{Cf}\x00-\x1f\x7f]/gu, '').slice(0, 40).trim() || 'MCP client';
   const date = new Date().toISOString().slice(0, 10);
-  return `Claude MCP: ${sanitized} ${date}`;
+  return `MCP: ${sanitized} ${date}`;
 }
 
 /** Best-effort cleanup of a token minted for a session that then failed verification. */
@@ -229,7 +229,7 @@ export function authorizePostHandler(deps: AuthDeps): RequestHandler {
   return async (req, res) => {
     if (!isSameOriginRequest(req, deps)) {
       setPageSecurityHeaders(res);
-      return void res.status(403).type('html').send(renderErrorPage('This sign-in form expired. Start the connection again from Claude.'));
+      return void res.status(403).type('html').send(renderErrorPage('This sign-in form expired. Start the connection again from the app you were connecting.'));
     }
 
     const body = (req.body ?? {}) as Record<string, unknown>;
@@ -241,7 +241,7 @@ export function authorizePostHandler(deps: AuthDeps): RequestHandler {
     const cookieCsrf = readCookie(req.headers.cookie, CSRF_COOKIE);
     if (!cookieCsrf || typeof body.csrf !== 'string' || !safeEqual(cookieCsrf, body.csrf)) {
       setPageSecurityHeaders(res);
-      return void res.status(403).type('html').send(renderErrorPage('This sign-in form expired. Start the connection again from Claude.'));
+      return void res.status(403).type('html').send(renderErrorPage('This sign-in form expired. Start the connection again from the app you were connecting.'));
     }
 
     if (body.login === 'session') {
