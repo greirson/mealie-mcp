@@ -35,6 +35,7 @@ export async function startTestApp(
     mealieSessionLogin: options.sessionLogin ?? false,
     encryptionKey: Buffer.alloc(32, 7),
     allowedRedirectHosts: ['claude.ai', 'claude.com', 'chatgpt.com', 'vscode.dev'],
+    allowedRedirectSchemes: ['cursor', 'vscode', 'vscode-insiders'],
     allowNativeAppRedirects: true,
     trustCloudflare: false,
     authRateLimitPerMinute: 1000,

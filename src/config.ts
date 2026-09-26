@@ -5,6 +5,7 @@ export interface Config {
   mealieSessionLogin: boolean;
   encryptionKey: Buffer;
   allowedRedirectHosts: string[];
+  allowedRedirectSchemes: string[];
   allowNativeAppRedirects: boolean;
   trustCloudflare: boolean;
   authRateLimitPerMinute: number;
@@ -22,6 +23,7 @@ export class ConfigError extends Error {
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 const DEFAULT_REDIRECT_HOSTS = ['claude.ai', 'claude.com', 'chatgpt.com', 'vscode.dev'];
+const DEFAULT_REDIRECT_SCHEMES = ['cursor', 'vscode', 'vscode-insiders'];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const problems: string[] = [];
@@ -54,6 +56,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mealieSessionLogin: mealiePublicUrl!.host === publicUrl!.host,
     encryptionKey: encryptionKey!,
     allowedRedirectHosts: parseList(env.ALLOWED_REDIRECT_HOSTS) ?? DEFAULT_REDIRECT_HOSTS,
+    // URL schemes are case-insensitive and `new URL` lowercases them, so compare in lowercase without the colon.
+    allowedRedirectSchemes: (parseList(env.ALLOWED_REDIRECT_SCHEMES) ?? DEFAULT_REDIRECT_SCHEMES).map((s) => s.toLowerCase().replace(/:$/, '')),
     // Only the literal string "false" disables it, matching TRUST_CLOUDFLARE's "true"-only opt-in below.
     allowNativeAppRedirects: env.ALLOW_NATIVE_APP_REDIRECTS !== 'false',
     trustCloudflare: env.TRUST_CLOUDFLARE === 'true',

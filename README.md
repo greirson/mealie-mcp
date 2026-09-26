@@ -211,13 +211,14 @@ Everything runs with the signed-in person's Mealie permissions.
 | `MCP_ENCRYPTION_KEY` | yes | | Base64 of 32 random bytes. Changing it signs everyone out |
 | `TRUST_CLOUDFLARE` | no | `false` | Rate-limit by `CF-Connecting-IP` when behind Cloudflare |
 | `AUTH_RATE_LIMIT_PER_MINUTE` | no | `10` | Sign-in and token requests per IP per minute |
-| `ALLOWED_REDIRECT_HOSTS` | no | `claude.ai,claude.com,chatgpt.com,vscode.dev` | Web apps (https) that may receive sign-in codes; loopback and app URL schemes are handled by `ALLOW_NATIVE_APP_REDIRECTS` |
-| `ALLOW_NATIVE_APP_REDIRECTS` | no | `true` | Allow loopback redirects (`localhost`, `127.0.0.1`, `[::1]`, any port) and app URL schemes (e.g. `cursor://`) by default. Set to `false` to only allow apps listed in `ALLOWED_REDIRECT_HOSTS` |
+| `ALLOWED_REDIRECT_HOSTS` | no | `claude.ai,claude.com,chatgpt.com,vscode.dev` | Web apps (https) that may receive sign-in codes |
+| `ALLOWED_REDIRECT_SCHEMES` | no | `cursor,vscode,vscode-insiders` | Desktop app URL schemes that may receive sign-in codes |
+| `ALLOW_NATIVE_APP_REDIRECTS` | no | `true` | Allow loopback redirects (`localhost`, `127.0.0.1`, `[::1]`, any port) and the schemes in `ALLOWED_REDIRECT_SCHEMES`. Set to `false` to only allow apps listed in `ALLOWED_REDIRECT_HOSTS` |
 | `PORT` | no | `8080` | Listen port inside the container |
 | `DATA_DIR` | no | `/data` | Where the SQLite database lives |
 | `LOG_LEVEL` | no | `info` | Log level |
 
-To allow another web app to sign in, find its redirect host (the sign-in error names it) and add it to `ALLOWED_REDIRECT_HOSTS`.
+To allow another app to sign in, find its redirect host or URL scheme (the sign-in error names it) and add it to `ALLOWED_REDIRECT_HOSTS` or `ALLOWED_REDIRECT_SCHEMES`. Only add schemes that belong to an app you trust: some schemes hand the address to a web browser, which would send the sign-in code to a website.
 
 ## Security
 
