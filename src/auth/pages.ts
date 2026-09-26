@@ -6,8 +6,8 @@ export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-export function setPageSecurityHeaders(res: Response, formActionOrigin?: string): void {
-  const formAction = formActionOrigin ? `'self' ${formActionOrigin}` : `'self'`;
+export function setPageSecurityHeaders(res: Response, formActionSource?: string): void {
+  const formAction = formActionSource ? `'self' ${formActionSource}` : `'self'`;
   res.set({
     'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; form-action ${formAction}; frame-ancestors 'none'; base-uri 'none'`,
     'X-Frame-Options': 'DENY',
@@ -37,7 +37,18 @@ function hidden(name: string, value: string | undefined): string {
   return value === undefined ? '' : `<input type="hidden" name="${name}" value="${escapeHtml(value)}">`;
 }
 
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * The CSP `form-action` source that actually covers `redirectUri`. An http(s) destination has a
+ * real origin, but a private-use / custom scheme (e.g. `cursor:`) has none: `new URL(...).origin`
+ * is the opaque string "null", which is not a usable CSP source and would leave form-action
+ * covering only 'self'. A scheme-source (e.g. "cursor:") is what CSP expects for those instead.
+ */
+export function redirectFormActionSource(redirectUri: string): string {
+  const url = new URL(redirectUri);
+  return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : url.protocol;
+}
 
 /**
  * A display-safe client name: strips control characters and Unicode format characters (bidi
@@ -48,9 +59,15 @@ function sanitizeClientName(clientName: string | null): string {
   return cleaned || 'An MCP client';
 }
 
-/** Where the OAuth code will be sent: host only, or host and path for localhost so it is not just "localhost". */
+/**
+ * Where the OAuth code will be sent: host only, or host and path for loopback so it is not just
+ * "localhost". A non-http(s) scheme shows "scheme://host" instead of the bare host, which would
+ * otherwise look like an ordinary domain name (e.g. "anysphere.cursor-mcp") and hide that it is
+ * actually launching a native app via a custom URI scheme.
+ */
 function redirectDisplay(redirectUri: string): string {
   const url = new URL(redirectUri);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return `${url.protocol}//${url.host}`;
   return LOCAL_HOSTS.has(url.hostname) ? `${url.host}${url.pathname}` : url.host;
 }
 
@@ -81,7 +98,7 @@ function tokenPasteForm(params: AuthorizeParams, csrf: string, tokenPage: string
 
 export function renderLoginPage(input: { params: AuthorizeParams; csrf: string; mealiePublicUrl: string; error?: string }): string {
   const { params } = input;
-  const host = new URL(params.redirectUri).host;
+  const host = redirectDisplay(params.redirectUri);
   const clientName = sanitizeClientName(params.clientName);
   const tokenPage = `${input.mealiePublicUrl}/user/profile/api-tokens`;
   const body = `
