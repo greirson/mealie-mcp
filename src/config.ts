@@ -5,6 +5,7 @@ export interface Config {
   mealieSessionLogin: boolean;
   encryptionKey: Buffer;
   allowedRedirectHosts: string[];
+  allowNativeAppRedirects: boolean;
   trustCloudflare: boolean;
   authRateLimitPerMinute: number;
   port: number;
@@ -20,7 +21,7 @@ export class ConfigError extends Error {
 }
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
-const DEFAULT_REDIRECT_HOSTS = ['claude.ai', 'claude.com', 'localhost', '127.0.0.1'];
+const DEFAULT_REDIRECT_HOSTS = ['claude.ai', 'claude.com', 'chatgpt.com', 'vscode.dev'];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const problems: string[] = [];
@@ -53,6 +54,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     mealieSessionLogin: mealiePublicUrl!.host === publicUrl!.host,
     encryptionKey: encryptionKey!,
     allowedRedirectHosts: parseList(env.ALLOWED_REDIRECT_HOSTS) ?? DEFAULT_REDIRECT_HOSTS,
+    // Only the literal string "false" disables it, matching TRUST_CLOUDFLARE's "true"-only opt-in below.
+    allowNativeAppRedirects: env.ALLOW_NATIVE_APP_REDIRECTS !== 'false',
     trustCloudflare: env.TRUST_CLOUDFLARE === 'true',
     authRateLimitPerMinute,
     port,

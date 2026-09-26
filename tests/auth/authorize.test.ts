@@ -544,3 +544,62 @@ describe('GET/POST /authorize (hostile client name sanitization)', () => {
     expect(mintRequests[0]!.name.startsWith('MCP: Trustedexe.cod')).toBe(true);
   });
 });
+
+describe('GET/POST /authorize (custom-scheme redirect_uri, e.g. Cursor)', () => {
+  const CURSOR_REDIRECT = 'cursor://anysphere.cursor-mcp/oauth/callback';
+
+  async function registerCursorClient(): Promise<string> {
+    const res = await fetch(`${app.baseUrl}/mcp/oauth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Cursor', redirect_uris: [CURSOR_REDIRECT], token_endpoint_auth_method: 'none' }),
+    });
+    return ((await res.json()) as { client_id: string }).client_id;
+  }
+
+  function cursorAuthorizeUrl(clientId: string, extra: Record<string, string> = {}): string {
+    const url = new URL('/mcp/oauth/authorize', app.baseUrl);
+    url.search = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: CURSOR_REDIRECT,
+      response_type: 'code',
+      code_challenge: pkcePair().challenge,
+      code_challenge_method: 'S256',
+      state: 'st4te',
+      ...extra,
+    }).toString();
+    return url.href;
+  }
+
+  it('shows an unambiguous, scheme-prefixed destination on the consent page, with form-action covering the scheme', async () => {
+    const clientId = await registerCursorClient();
+    const f = await openLoginForm(cursorAuthorizeUrl(clientId));
+    expect(f.status).toBe(200);
+    expect(f.html).toContain('returning to <strong>cursor://anysphere.cursor-mcp</strong>');
+    expect(f.headers.get('content-security-policy')).toContain("form-action 'self' cursor:");
+  });
+
+  it('completes login and points the success page at the cursor:// redirect_uri', async () => {
+    const clientId = await registerCursorClient();
+    const f = await openLoginForm(cursorAuthorizeUrl(clientId));
+    const page = await submitLogin(app.baseUrl, f, 'good-token');
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    const { code, state } = codeFromSuccessPage(html);
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(state).toBe('st4te');
+    expect(html).toContain(`<meta http-equiv="refresh" content="1;url=${CURSOR_REDIRECT}?code=${code}&amp;state=st4te">`);
+  });
+
+  it('redirects an invalid authorize request to the cursor:// redirect_uri with a Location header', async () => {
+    const clientId = await registerCursorClient();
+    const res = await fetch(cursorAuthorizeUrl(clientId, { code_challenge: '' }), { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    const location = res.headers.get('location');
+    expect(location).not.toBeNull();
+    expect(location!.startsWith(`${CURSOR_REDIRECT}?`)).toBe(true);
+    const parsed = new URL(location!);
+    expect(parsed.searchParams.get('error')).toBe('invalid_request');
+    expect(parsed.searchParams.get('state')).toBe('st4te');
+  });
+});

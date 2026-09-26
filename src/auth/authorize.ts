@@ -5,6 +5,7 @@ import { encrypt, hashToken, randomToken, safeEqual } from '../store/crypto.js';
 import type { AuthDeps } from './index.js';
 import { authServerIssuer } from './metadata.js';
 import {
+  redirectFormActionSource,
   renderErrorPage,
   renderLoginPage,
   renderSessionPage,
@@ -99,7 +100,7 @@ export function authorizeGetHandler(deps: AuthDeps): RequestHandler {
       path: OAUTH_PATHS.authorize,
       maxAge: 15 * 60_000,
     });
-    setPageSecurityHeaders(res, new URL(params.redirectUri).origin);
+    setPageSecurityHeaders(res, redirectFormActionSource(params.redirectUri));
 
     if (!deps.config.mealieSessionLogin) {
       res.status(200).type('html').send(renderLoginPage({ params, csrf, mealiePublicUrl: deps.config.mealiePublicUrl }));
@@ -144,7 +145,7 @@ function finalizeLogin(deps: AuthDeps, res: Response, params: AuthorizeParams, u
 
   res.clearCookie(CSRF_COOKIE, { path: OAUTH_PATHS.authorize });
   deps.logger.info({ mealieUser: user.username, clientId: params.clientId }, 'connector authorized');
-  setPageSecurityHeaders(res, new URL(params.redirectUri).origin);
+  setPageSecurityHeaders(res, redirectFormActionSource(params.redirectUri));
   res.status(200).type('html').send(
     renderSuccessPage({ displayName: user.fullName || user.username, household: user.household ?? undefined, redirectUrl: redirect.href })
   );
@@ -171,9 +172,9 @@ async function tryDeleteMintedToken(deps: AuthDeps, jwt: string, tokenId: number
 
 /** Handles `login=session`: mints a dedicated Mealie API token from the caller's session cookie. */
 async function handleSessionLogin(deps: AuthDeps, req: Request, res: Response, params: AuthorizeParams, csrf: string): Promise<void> {
-  const redirectOrigin = new URL(params.redirectUri).origin;
+  const formActionSource = redirectFormActionSource(params.redirectUri);
   const renderSignedOut = (status: number, error: string) => {
-    setPageSecurityHeaders(res, redirectOrigin);
+    setPageSecurityHeaders(res, formActionSource);
     res
       .status(status)
       .type('html')
@@ -239,7 +240,7 @@ export function authorizePostHandler(deps: AuthDeps): RequestHandler {
     const v = validateAuthorizeParams(deps.store, body);
     if (!handleInvalid(res, v, deps)) return;
     const { params } = v;
-    const redirectOrigin = new URL(params.redirectUri).origin;
+    const formActionSource = redirectFormActionSource(params.redirectUri);
 
     const cookieCsrf = readCookie(req.headers.cookie, CSRF_COOKIE);
     if (!cookieCsrf || typeof body.csrf !== 'string' || !safeEqual(cookieCsrf, body.csrf)) {
@@ -252,7 +253,7 @@ export function authorizePostHandler(deps: AuthDeps): RequestHandler {
     }
 
     const renderAgain = (status: number, error: string) => {
-      setPageSecurityHeaders(res, redirectOrigin);
+      setPageSecurityHeaders(res, formActionSource);
       const page = deps.config.mealieSessionLogin
         ? renderSignedOutPage({ params, csrf: cookieCsrf, mealiePublicUrl: deps.config.mealiePublicUrl, continueUrl: continueUrl(params), error })
         : renderLoginPage({ params, csrf: cookieCsrf, mealiePublicUrl: deps.config.mealiePublicUrl, error });
