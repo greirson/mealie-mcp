@@ -25,7 +25,7 @@ export function validateAuthorizeParams(store: Store, source: Record<string, unk
   const clientId = str('client_id');
   if (!clientId) return page('Missing client_id.');
   const client = store.getClient(clientId);
-  if (!client) return page('Unknown client. Remove and re-add the connector in Claude.');
+  if (!client) return page('Unknown client. Remove and re-add the connector in the app you are using.');
 
   const requested = str('redirect_uri');
   const redirectUri = requested ?? (client.redirectUris.length === 1 ? client.redirectUris[0] : undefined);

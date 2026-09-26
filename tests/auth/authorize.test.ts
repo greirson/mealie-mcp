@@ -203,7 +203,7 @@ describe('POST /authorize (sign in with Mealie session)', () => {
     expect(mintRequests).toHaveLength(1);
     expect(mintRequests[0]!.authorization).toBe(`Bearer ${jwt}`);
     const today = new Date().toISOString().slice(0, 10);
-    expect(mintRequests[0]!.name).toBe(`Claude MCP: My Client ${today}`);
+    expect(mintRequests[0]!.name).toBe(`MCP: My Client ${today}`);
 
     const html = await res.text();
     expect(html).toContain('Sam Cook (Home)');
@@ -417,7 +417,7 @@ describe('GET/POST /authorize (consent phishing hardening)', () => {
     const f = await openLoginForm(authorizeUrl(app.baseUrl, clientId, pkcePair().challenge), 'mealie.access_token=jwt-good');
     expect(f.html).toContain('My Client');
     expect(f.html).toContain(`returning to <strong>${new URL(REDIRECT).host}</strong>`);
-    expect(f.html).toContain('Only click Allow if you just started connecting from Claude or another app you trust.');
+    expect(f.html).toContain('Only click Allow if you just started connecting from an app you trust.');
   });
 
   it('shows the redirect host and path for a localhost redirect_uri', async () => {
@@ -506,6 +506,6 @@ describe('GET/POST /authorize (hostile client name sanitization)', () => {
     expect(res.status).toBe(200);
     expect(mintRequests).toHaveLength(1);
     expect(mintRequests[0]!.name).not.toContain('‮');
-    expect(mintRequests[0]!.name.startsWith('Claude MCP: Trustedexe.cod')).toBe(true);
+    expect(mintRequests[0]!.name.startsWith('MCP: Trustedexe.cod')).toBe(true);
   });
 });

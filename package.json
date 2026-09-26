@@ -1,7 +1,7 @@
 {
   "name": "mealie-mcp",
   "version": "0.1.0",
-  "description": "Remote MCP server that lets Claude work with your self-hosted Mealie as you.",
+  "description": "Remote MCP server that lets AI apps work with your self-hosted Mealie as you.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -12,6 +12,9 @@
     "mcp",
     "mealie",
     "claude",
+    "chatgpt",
+    "cursor",
+    "oauth",
     "model-context-protocol",
     "self-hosted"
   ],
