@@ -20,6 +20,9 @@ describe('OAuth metadata', () => {
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
+      // RFC 9207: advertised so ChatGPT/Codex can rely on `iss` being present on every
+      // authorization response and use a stable redirect URI.
+      authorization_response_iss_parameter_supported: true,
     });
   });
 
@@ -43,5 +46,13 @@ describe('OAuth metadata', () => {
     const body = await res.json();
     expect(body.resource).toBe(`${app.baseUrl}/mcp`);
     expect(body.authorization_servers).toEqual([`${app.baseUrl}/`]);
+  });
+
+  it('keeps protected resource authorization_servers[0] byte-identical to the AS metadata issuer', async () => {
+    const asMetadata = await (await fetch(`${app.baseUrl}/.well-known/oauth-authorization-server`)).json();
+    const prMetadata = await (await fetch(`${app.baseUrl}/.well-known/oauth-protected-resource/mcp`)).json();
+    // Exact string comparison, no normalization: a mismatch (e.g. a stray trailing slash) is a
+    // hard failure for ChatGPT/Codex per RFC 9207.
+    expect(prMetadata.authorization_servers[0]).toBe(asMetadata.issuer);
   });
 });

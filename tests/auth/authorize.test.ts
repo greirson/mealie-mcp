@@ -72,7 +72,18 @@ describe('GET /authorize', () => {
       expect(location.origin + location.pathname).toBe(REDIRECT);
       expect(location.searchParams.get('error')).toBe('invalid_request');
       expect(location.searchParams.get('state')).toBe('st4te');
+      // RFC 9207: every error redirect carries iss, exactly matching the AS metadata issuer.
+      expect(location.searchParams.get('iss')).toBe(`${app.baseUrl}/`);
     }
+  });
+
+  it('redirects with unsupported_response_type and iss when response_type is not "code"', async () => {
+    const clientId = await registerClient(app.baseUrl);
+    const res = await fetch(authorizeUrl(app.baseUrl, clientId, pkcePair().challenge, { response_type: 'token' }), { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get('location')!);
+    expect(location.searchParams.get('error')).toBe('unsupported_response_type');
+    expect(location.searchParams.get('iss')).toBe(`${app.baseUrl}/`);
   });
 });
 
@@ -83,9 +94,11 @@ describe('POST /authorize', () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain('Sam Cook (Home)');
-    const { code, state } = codeFromSuccessPage(html);
+    const { code, state, iss } = codeFromSuccessPage(html);
     expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(state).toBe('st4te');
+    // RFC 9207: the success redirect carries iss, exactly matching the AS metadata issuer.
+    expect(iss).toBe(`${app.baseUrl}/`);
   });
 
   it('trims pasted token whitespace', async () => {
@@ -442,6 +455,28 @@ describe('GET/POST /authorize (consent phishing hardening)', () => {
     }).toString();
     const f = await openLoginForm(url.href, 'mealie.access_token=jwt-good');
     expect(f.html).toContain('returning to <strong>localhost:9999/callback</strong>');
+  });
+});
+
+describe('GET/POST /authorize (RFC 9207 issuer identification)', () => {
+  async function metadataIssuer(): Promise<string> {
+    const res = await fetch(`${app.baseUrl}/.well-known/oauth-authorization-server`);
+    return ((await res.json()) as { issuer: string }).issuer;
+  }
+
+  it('carries iss on the success redirect, exactly matching the AS metadata issuer', async () => {
+    const issuer = await metadataIssuer();
+    const res = await submitLogin(app.baseUrl, await form(), 'good-token');
+    const { iss } = codeFromSuccessPage(await res.text());
+    expect(iss).toBe(issuer);
+  });
+
+  it('carries iss on an error redirect, exactly matching the AS metadata issuer', async () => {
+    const issuer = await metadataIssuer();
+    const clientId = await registerClient(app.baseUrl);
+    const res = await fetch(authorizeUrl(app.baseUrl, clientId, pkcePair().challenge, { code_challenge: '' }), { redirect: 'manual' });
+    const location = new URL(res.headers.get('location')!);
+    expect(location.searchParams.get('iss')).toBe(issuer);
   });
 });
 

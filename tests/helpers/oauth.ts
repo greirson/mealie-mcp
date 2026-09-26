@@ -68,11 +68,11 @@ export async function submitLogin(baseUrl: string, form: LoginForm, mealieToken:
   return submitForm(baseUrl, form, { mealie_token: mealieToken });
 }
 
-export function codeFromSuccessPage(html: string): { code: string; state: string | null } {
+export function codeFromSuccessPage(html: string): { code: string; state: string | null; iss: string | null } {
   const match = html.match(/<a id="continue" href="([^"]+)"/);
   if (!match) throw new Error(`no continue link in page:\n${html}`);
   const url = new URL(unescapeHtml(match[1]!));
-  return { code: url.searchParams.get('code')!, state: url.searchParams.get('state') };
+  return { code: url.searchParams.get('code')!, state: url.searchParams.get('state'), iss: url.searchParams.get('iss') };
 }
 
 export function unescapeHtml(value: string): string {
