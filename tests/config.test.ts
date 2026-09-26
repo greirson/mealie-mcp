@@ -16,6 +16,7 @@ describe('loadConfig', () => {
     expect(c.mealiePublicUrl).toBe('http://mealie:9000');
     expect(c.encryptionKey.length).toBe(32);
     expect(c.allowedRedirectHosts).toEqual(['claude.ai', 'claude.com', 'chatgpt.com', 'vscode.dev']);
+    expect(c.allowedRedirectSchemes).toEqual(['cursor', 'vscode', 'vscode-insiders']);
     expect(c.allowNativeAppRedirects).toBe(true);
     expect(c.trustCloudflare).toBe(false);
     expect(c.authRateLimitPerMinute).toBe(10);
@@ -87,6 +88,10 @@ describe('loadConfig', () => {
   it('disables Mealie session login when the public hosts differ', () => {
     const c = loadConfig({ ...base, PUBLIC_URL: 'https://mealie-mcp.example.com', MEALIE_PUBLIC_URL: 'https://mealie.example.com' });
     expect(c.mealieSessionLogin).toBe(false);
+  });
+
+  it('parses ALLOWED_REDIRECT_SCHEMES case-insensitively, with or without a trailing colon', () => {
+    expect(loadConfig({ ...base, ALLOWED_REDIRECT_SCHEMES: 'Cursor:, com.example.app' }).allowedRedirectSchemes).toEqual(['cursor', 'com.example.app']);
   });
 
   it('disables native app redirects only on the literal string "false"', () => {

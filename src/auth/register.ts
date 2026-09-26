@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import * as z from 'zod';
+import type { Config } from '../config.js';
 import type { AuthDeps } from './index.js';
 import { oauthError } from './respond.js';
 
@@ -11,21 +12,23 @@ const bodySchema = z.looseObject({
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-// Schemes that must always be rejected even when native app / custom-scheme redirects are
-// allowed: each can hand a sign-in code to a script, a local file read, or another web origin
-// entirely, defeating the point of allowing "software on the user's own machine" schemes.
+// Schemes that must always be rejected, even if an operator adds them to ALLOWED_REDIRECT_SCHEMES:
+// each can hand a sign-in code to a script, a local file read, or another web origin entirely.
 const DANGEROUS_SCHEMES = new Set([
-  'javascript:', 'data:', 'file:', 'vbscript:', 'blob:', 'about:', 'ftp:', 'ws:', 'wss:', 'filesystem:', 'view-source:',
+  'javascript:', 'data:', 'file:', 'vbscript:', 'blob:', 'about:', 'ftp:', 'ws:', 'wss:', 'filesystem:', 'view-source:', 'intent:',
 ]);
 
+export type RedirectPolicy = Pick<Config, 'allowedRedirectHosts' | 'allowedRedirectSchemes' | 'allowNativeAppRedirects'>;
+
 /**
- * The allowlist exists so a malicious DCR registration cannot send a sign-in code to an
- * attacker's web server. A loopback address or a private-use / custom URI scheme instead
- * delivers the code to software running on the user's own machine (RFC 8252), and the consent
- * page shows the destination, so both are allowed by default; https destinations stay
- * allowlisted, and ALLOW_NATIVE_APP_REDIRECTS can switch the native-app allowance off entirely.
+ * The allowlists exist so a malicious DCR registration cannot send a sign-in code to an
+ * attacker's web server. A loopback address delivers the code to software on the user's own
+ * machine (RFC 8252), so it is allowed by default. Custom URI schemes are allowlisted like https
+ * hosts, because some schemes hand their URL to a browser or a fetching app
+ * (e.g. microsoft-edge:https://..., x-safari-https://...), which would leak the code to the web.
+ * ALLOW_NATIVE_APP_REDIRECTS switches both loopback and custom-scheme redirects off.
  */
-export function checkRedirectUri(uri: string, allowedHosts: string[], allowNativeAppRedirects: boolean): string | undefined {
+export function checkRedirectUri(uri: string, policy: RedirectPolicy): string | undefined {
   let url: URL;
   try {
     url = new URL(uri);
@@ -38,13 +41,16 @@ export function checkRedirectUri(uri: string, allowedHosts: string[], allowNativ
   const isHttps = url.protocol === 'https:';
 
   if (!isHttp && !isHttps) {
-    if (!allowNativeAppRedirects) return `Redirect URI must use http or https: ${uri}`;
-    if (DANGEROUS_SCHEMES.has(url.protocol)) return `Redirect URI scheme ${url.protocol} is not allowed: ${uri}`;
+    if (!policy.allowNativeAppRedirects) return `Redirect URI must use http or https: ${uri}`;
+    const scheme = url.protocol.slice(0, -1);
+    if (DANGEROUS_SCHEMES.has(url.protocol) || !policy.allowedRedirectSchemes.includes(scheme)) {
+      return `Redirect URI scheme ${scheme} is not allowed. Add it to ALLOWED_REDIRECT_SCHEMES to permit this app.`;
+    }
     return undefined;
   }
 
   const isLoopback = LOOPBACK_HOSTS.has(url.hostname);
-  if (isLoopback && allowNativeAppRedirects) return undefined;
+  if (isLoopback && policy.allowNativeAppRedirects) return undefined;
 
   if (isHttp && !isLoopback) {
     return `Redirect URI must use https (http is allowed only for loopback addresses): ${uri}`;
@@ -52,7 +58,7 @@ export function checkRedirectUri(uri: string, allowedHosts: string[], allowNativ
 
   // Reached for: https on any host, or http on a loopback host with the kill switch off (the
   // pre-existing behavior, which required the loopback host to be allowlisted too).
-  if (!allowedHosts.includes(url.hostname)) {
+  if (!policy.allowedRedirectHosts.includes(url.hostname)) {
     return `Redirect host ${url.hostname} is not allowed. Add it to ALLOWED_REDIRECT_HOSTS to permit this client.`;
   }
   return undefined;
@@ -69,7 +75,7 @@ export function registerHandler({ config, store }: AuthDeps): RequestHandler {
       return void oauthError(res, 400, 'invalid_client_metadata', 'Only public clients (token_endpoint_auth_method "none") are supported');
     }
     for (const uri of meta.redirect_uris) {
-      const problem = checkRedirectUri(uri, config.allowedRedirectHosts, config.allowNativeAppRedirects);
+      const problem = checkRedirectUri(uri, config);
       if (problem) return void oauthError(res, 400, 'invalid_redirect_uri', problem);
     }
     const client = store.createClient({ clientName: meta.client_name ?? null, redirectUris: meta.redirect_uris });

@@ -81,29 +81,45 @@ describe('POST /register', () => {
 });
 
 describe('checkRedirectUri', () => {
-  const hosts = ['claude.ai', 'chatgpt.com', 'vscode.dev'];
+  const policy = { allowedRedirectHosts: ['claude.ai', 'chatgpt.com', 'vscode.dev'], allowedRedirectSchemes: ['cursor', 'vscode'], allowNativeAppRedirects: true };
+  const strict = { ...policy, allowNativeAppRedirects: false };
 
-  it('accepts allowed https, loopback http/https, and custom schemes by default', () => {
-    expect(checkRedirectUri('https://claude.ai/cb', hosts, true)).toBeUndefined();
-    expect(checkRedirectUri('http://localhost:9999/cb', hosts, true)).toBeUndefined();
-    expect(checkRedirectUri('http://127.0.0.1:5555/cb', hosts, true)).toBeUndefined();
-    expect(checkRedirectUri('http://[::1]:33418/', hosts, true)).toBeUndefined();
-    expect(checkRedirectUri('cursor://anysphere.cursor-mcp/oauth/callback', hosts, true)).toBeUndefined();
-    expect(checkRedirectUri('com.example.app:/oauth/callback', hosts, true)).toBeUndefined();
+  it('accepts allowed https, loopback http/https, and allowlisted custom schemes by default', () => {
+    expect(checkRedirectUri('https://claude.ai/cb', policy)).toBeUndefined();
+    expect(checkRedirectUri('http://localhost:9999/cb', policy)).toBeUndefined();
+    expect(checkRedirectUri('http://127.0.0.1:5555/cb', policy)).toBeUndefined();
+    expect(checkRedirectUri('http://[::1]:33418/', policy)).toBeUndefined();
+    expect(checkRedirectUri('cursor://anysphere.cursor-mcp/oauth/callback', policy)).toBeUndefined();
+    expect(checkRedirectUri('com.example.app:/oauth/callback', { ...policy, allowedRedirectSchemes: ['com.example.app'] })).toBeUndefined();
   });
 
   it('rejects http on public hosts, fragments, subdomains, and garbage', () => {
-    expect(checkRedirectUri('http://claude.ai/cb', hosts, true)).toMatch(/https/);
-    expect(checkRedirectUri('https://claude.ai/cb#x', hosts, true)).toMatch(/fragment/);
-    expect(checkRedirectUri('https://evil.claude.ai/cb', hosts, true)).toMatch(/not allowed/);
-    expect(checkRedirectUri('not a url', hosts, true)).toMatch(/Invalid/);
+    expect(checkRedirectUri('http://claude.ai/cb', policy)).toMatch(/https/);
+    expect(checkRedirectUri('https://claude.ai/cb#x', policy)).toMatch(/fragment/);
+    expect(checkRedirectUri('https://evil.claude.ai/cb', policy)).toMatch(/not allowed/);
+    expect(checkRedirectUri('https://claude.ai@evil.example/cb', policy)).toMatch(/not allowed/);
+    expect(checkRedirectUri('http://127.0.0.1.evil.example/cb', policy)).toMatch(/https/);
+    expect(checkRedirectUri('not a url', policy)).toMatch(/Invalid/);
   });
 
   it('rejects a fragment even on an otherwise-allowed custom scheme', () => {
-    expect(checkRedirectUri('cursor://anysphere.cursor-mcp/cb#x', hosts, true)).toMatch(/fragment/);
+    expect(checkRedirectUri('cursor://anysphere.cursor-mcp/cb#x', policy)).toMatch(/fragment/);
   });
 
-  it('rejects dangerous schemes case-insensitively, even when native app redirects are allowed', () => {
+  it('rejects custom schemes that are not allowlisted, including ones that hand the URL to a browser', () => {
+    for (const uri of [
+      'com.example.app:/oauth/callback',
+      'microsoft-edge:https://evil.example/cb',
+      'x-safari-https://evil.example/cb',
+      'googlechromes://evil.example/cb',
+      'ms-word:ofe|u|https://evil.example/doc',
+    ]) {
+      expect(checkRedirectUri(uri, policy), uri).toMatch(/ALLOWED_REDIRECT_SCHEMES/);
+    }
+  });
+
+  it('rejects dangerous schemes case-insensitively, even when an operator allowlists them', () => {
+    const everything = { ...policy, allowedRedirectSchemes: ['javascript', 'data', 'file', 'vbscript', 'blob', 'about', 'ftp', 'ws', 'wss', 'filesystem', 'view-source', 'intent'] };
     for (const uri of [
       'javascript:alert(1)',
       'JavaScript:alert(1)',
@@ -117,15 +133,16 @@ describe('checkRedirectUri', () => {
       'wss://example.com/x',
       'filesystem:https://example.com/x',
       'view-source:https://example.com',
+      'intent://evil.example/cb',
     ]) {
-      expect(checkRedirectUri(uri, hosts, true), uri).toMatch(/not allowed/);
+      expect(checkRedirectUri(uri, everything), uri).toMatch(/not allowed/);
     }
   });
 
   it('kill switch off: rejects any custom scheme and non-allowlisted loopback, keeps https allowlist behavior', () => {
-    expect(checkRedirectUri('cursor://anysphere.cursor-mcp/oauth/callback', hosts, false)).toMatch(/http or https/);
-    expect(checkRedirectUri('http://127.0.0.1:5555/cb', hosts, false)).toMatch(/not allowed/);
-    expect(checkRedirectUri('http://127.0.0.1:5555/cb', [...hosts, '127.0.0.1'], false)).toBeUndefined();
-    expect(checkRedirectUri('https://claude.ai/cb', hosts, false)).toBeUndefined();
+    expect(checkRedirectUri('cursor://anysphere.cursor-mcp/oauth/callback', strict)).toMatch(/http or https/);
+    expect(checkRedirectUri('http://127.0.0.1:5555/cb', strict)).toMatch(/not allowed/);
+    expect(checkRedirectUri('http://127.0.0.1:5555/cb', { ...strict, allowedRedirectHosts: [...strict.allowedRedirectHosts, '127.0.0.1'] })).toBeUndefined();
+    expect(checkRedirectUri('https://claude.ai/cb', strict)).toBeUndefined();
   });
 });

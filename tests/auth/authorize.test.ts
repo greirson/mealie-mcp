@@ -585,10 +585,11 @@ describe('GET/POST /authorize (custom-scheme redirect_uri, e.g. Cursor)', () => 
     const page = await submitLogin(app.baseUrl, f, 'good-token');
     expect(page.status).toBe(200);
     const html = await page.text();
-    const { code, state } = codeFromSuccessPage(html);
+    const { code, state, iss } = codeFromSuccessPage(html);
     expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(state).toBe('st4te');
-    expect(html).toContain(`<meta http-equiv="refresh" content="1;url=${CURSOR_REDIRECT}?code=${code}&amp;state=st4te">`);
+    expect(iss).toBe(`${app.baseUrl}/`);
+    expect(html).toContain(`<meta http-equiv="refresh" content="1;url=${CURSOR_REDIRECT}?code=${code}&amp;state=st4te&amp;iss=${encodeURIComponent(`${app.baseUrl}/`)}">`);
   });
 
   it('redirects an invalid authorize request to the cursor:// redirect_uri with a Location header', async () => {
