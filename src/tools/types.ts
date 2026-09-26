@@ -2,6 +2,7 @@ import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import type { MealieClient } from '../mealie/client.js';
 import { toToolMessage } from '../mealie/errors.js';
+import { withPortableSchema } from './json-schema.js';
 
 export interface ToolContext {
   mealie: MealieClient;
@@ -20,7 +21,7 @@ export interface ToolDef<S extends z.ZodObject<any> = z.ZodObject<any>> {
   description: string;
   inputSchema: S;
   annotations: ToolAnnotationSet;
-  /** Appended to 404 messages so Claude knows which lookup tool to use. */
+  /** Appended to 404 messages so the model knows which lookup tool to use. */
   notFoundHint?: string;
   run(args: z.infer<S>, ctx: ToolContext): Promise<unknown>;
 }
@@ -53,7 +54,7 @@ export function registerTools(server: McpServer, tools: readonly AnyToolDef[], c
   for (const tool of tools) {
     server.registerTool(
       tool.name,
-      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: { title: tool.title, ...tool.annotations } },
+      { title: tool.title, description: tool.description, inputSchema: withPortableSchema(tool.inputSchema), annotations: { title: tool.title, ...tool.annotations } },
       (args: unknown) => runTool(tool, args, ctx)
     );
   }

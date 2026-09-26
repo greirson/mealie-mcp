@@ -6,7 +6,7 @@ const NOISE_KEYS = new Set([
   'image', 'cacheKey', 'tokens', 'groupSlug', 'householdSlug', 'extras',
 ]);
 
-/** Removes fields that cost context without helping Claude. Empty arrays are kept on purpose. */
+/** Removes fields that cost context without helping the model. Empty arrays are kept on purpose. */
 export function compact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(compact);
   if (value === null || typeof value !== 'object') return value;
